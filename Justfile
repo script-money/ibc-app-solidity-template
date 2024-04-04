@@ -12,6 +12,7 @@ compile COMPILER='hardhat':
     if test "{{COMPILER}}" = "hardhat"; then
         echo "Compiling contracts with Hardhat..."
         npx hardhat compile
+        npx hardhat typechain
     elif test "{{COMPILER}}" = "foundry"; then
         echo "Compiling contracts with Foundry..."
         forge build
@@ -27,48 +28,48 @@ compile COMPILER='hardhat':
 # Usage: just set-contracts [chain] [contract-type] [universal]
 set-contracts CHAIN CONTRACT_TYPE UNIVERSAL='true':
     echo "Updating config.json with contract type..."
-    node scripts/private/_set-contracts-config.js {{CHAIN}} {{CONTRACT_TYPE}} {{UNIVERSAL}}
+    bun run deploy/private/_set-contracts-config.ts {{CHAIN}} {{CONTRACT_TYPE}} {{UNIVERSAL}}
 
 # Deploy the contracts in the /contracts folder using Hardhat and updating the config.json file
 # The source and destination arguments are REQUIRED;
 # Usage: just deploy [source] [destination]
 deploy SOURCE DESTINATION:
-        echo "Deploying contracts with Hardhat..."
-        node scripts/private/_deploy-config.js {{SOURCE}} {{DESTINATION}}
+    echo "Deploying contracts with Hardhat..."
+    bun run deploy/private/_deploy-config.ts {{SOURCE}} {{DESTINATION}}
 
 # Run the sanity check script to verify that configuration (.env) files match with deployed contracts' stored values
 # Usage: just sanity-check
 sanity-check:
     echo "Running sanity check..."
-    node scripts/private/_sanity-check.js
+    bun run deploy/private/_sanity-check.ts
 
 # Update the dispatcher or universal channel handler address on the IBC application, with that from the .env file
 # The chain argument is REQUIRED;
 # Usage: just update-vibc [chain]
 update-vibc CHAIN:
   echo "Updating the dispatcher or universal channel handler address..."
-  npx hardhat run scripts/private/_update-vibc-address.js --network {{CHAIN}}
+  npx hardhat run deploy/private/_update-vibc-address.ts --network {{CHAIN}}
 
 # Create a channel by triggering a channel handshake from the source and with parameters found in the config.json file
 # Usage: just create-channel
 create-channel:
     echo "Attempting to create a channel with the values from the config..."
-    node scripts/private/_create-channel-config.js
+    bun run deploy/private/_create-channel-config.ts
 
 # Send a packet over the universal channel or a custom channel as defined in the config.json file
 # The source argument is REQUIRED;
 # Usage: just send-packet [source]
 send-packet SOURCE:
     echo "Sending a packet with the values from the config..."
-    node scripts/private/_send-packet-config.js {{SOURCE}}
+    bun run deploy/private/_send-packet-config.ts {{SOURCE}}
 
 # Switch between the sim client and the client with proofs
 # Usage: just switch-client
 switch-client:
     echo "Switching between sim client and client with proofs..."
-    npx hardhat run scripts/private/_update-vibc-address.js --network optimism
-    npx hardhat run scripts/private/_update-vibc-address.js --network base
-    node scripts/private/_switch-clients.js
+    npx hardhat run deploy/private/_update-vibc-address.ts --network optimism
+    npx hardhat run deploy/private/_update-vibc-address.ts --network base
+    bun run deploy/private/_switch-clients.ts
 
 # Run the full E2E flow by setting the contracts, deploying them, creating a channel, and sending a packet
 # Usage: just do-it
@@ -94,4 +95,4 @@ clean-all:
     echo "Cleaning up environment..."
     rm -rf artifacts cache
     forge clean
-    rm -rf node_modules
+    rm -rf bun run _modules

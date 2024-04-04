@@ -1,10 +1,12 @@
-require('@nomicfoundation/hardhat-toolbox');
-require('@nomicfoundation/hardhat-foundry');
+import '@nomicfoundation/hardhat-toolbox';
+import { vars } from 'hardhat/config';
+import '@nomicfoundation/hardhat-foundry';
 
-require('dotenv').config();
+// Run 'npx hardhat vars setup' to see the list of variables that need to be set
+const pk1 = vars.get('PRIVATE_KEY_1');
+const pk2 = vars.get('PRIVATE_KEY_2');
 
-/** @type import('hardhat/config').HardhatUserConfig */
-module.exports = {
+const config = {
   solidity: {
     version: '0.8.23',
     settings: {
@@ -18,12 +20,12 @@ module.exports = {
     // for Base testnet
     base: {
       url: 'https://sepolia.base.org',
-      accounts: [process.env.PRIVATE_KEY_1],
+      accounts: [pk1],
     },
     // for OP testnet
     optimism: {
       url: 'https://sepolia.optimism.io',
-      accounts: [process.env.PRIVATE_KEY_1],
+      accounts: [pk2],
     },
   },
   defaultNetwork: 'optimism',
@@ -32,12 +34,11 @@ module.exports = {
     tests: './test',
     cache: './cache',
     artifacts: './artifacts',
-    libraries: './lib',
   },
   etherscan: {
     apiKey: {
-      optimism: process.env.OP_BLOCKSCOUT_API_KEY,
-      base: process.env.BASE_BLOCKSCOUT_API_KEY,
+      optimism: process.env.OP_BLOCKSCOUT_API_KEY || '',
+      base: process.env.BASE_BLOCKSCOUT_API_KEY || '',
     },
     customChains: [
       {
@@ -59,3 +60,5 @@ module.exports = {
     ],
   },
 };
+
+export default config;
