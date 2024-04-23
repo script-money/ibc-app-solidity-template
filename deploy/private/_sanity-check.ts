@@ -1,9 +1,8 @@
 import { exec } from 'child_process';
+import { Config, Network } from './interfaces';
 import { getConfig } from './_helpers';
-import { Network, NetworkValues } from './interfaces';
 
-function runSanityCheck(network: Network) {
-  const config = getConfig();
+function runSanityCheck(config: Config, network: Network) {
   const scriptSuffix = config.isUniversal ? 'universal' : 'custom';
 
   exec(`bunx hardhat run deploy/private/_sanity-check-${scriptSuffix}.ts --network ${network}`, (error, stdout) => {
@@ -15,6 +14,13 @@ function runSanityCheck(network: Network) {
   });
 }
 
-for (const network of NetworkValues) {
-  runSanityCheck(network);
+function main() {
+  const config = getConfig();
+  const configChains = config.isUniversal ? (Object.keys(config.sendUniversalPacket) as Network[]) : (Object.keys(config.sendPacket) as Network[]);
+
+  configChains.forEach((network) => {
+    runSanityCheck(config, network);
+  });
 }
+
+main();

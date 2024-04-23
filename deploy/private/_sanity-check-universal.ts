@@ -9,10 +9,14 @@ import { areAddressesEqual, getConfig } from './_helpers';
 import { getIbcApp, getUcHandler } from './_vibc-helpers';
 import { Network } from './interfaces';
 import { XCounterUC } from '../../typechain-types';
+import hhConfig from '../../hardhat.config';
+
+const polyConfig = hhConfig.polymer;
 
 async function main() {
   const config = getConfig();
   const networkName = hre.network.name as Network;
+  const chainId = hre.config.networks[`${networkName}`].chainId;
 
   // Get the Universal Channel Mw from your IBC enabled contract and compare it with the values in the .env file
 
@@ -38,13 +42,12 @@ async function main() {
   let sanityCheck = false;
   let envUcHandlerAddr: string | undefined;
   try {
-    if (networkName === 'optimism') {
-      envUcHandlerAddr = config.proofsEnabled === true ? process.env.OP_UC_MW : process.env.OP_UC_MW_SIM;
-      sanityCheck = areAddressesEqual(ucHandlerAddr, envUcHandlerAddr);
-    } else if (networkName === 'base') {
-      envUcHandlerAddr = config.proofsEnabled === true ? process.env.BASE_UC_MW : process.env.BASE_UC_MW_SIM;
-      sanityCheck = areAddressesEqual(ucHandlerAddr, envUcHandlerAddr);
-    }
+    // TODO: update for multi-client selection
+    envUcHandlerAddr =
+      config.proofsEnabled === true
+        ? polyConfig[`${chainId}`]['clients']['op-client'].universalChannelAddr
+        : polyConfig[`${chainId}`]['clients']['sim-client'].universalChannelAddr;
+    sanityCheck = areAddressesEqual(ucHandlerAddr, envUcHandlerAddr);
   } catch (error) {
     console.log(`❌ Error comparing Universal Channel Mw addresses in .env file and IBC app: ${error}`);
     return;
@@ -63,15 +66,11 @@ async function main() {
     try {
       ucHandler = await getUcHandler(networkName);
       dispatcherAddr = await ucHandler!.dispatcher();
-      if (networkName === 'optimism') {
-        envDispatcherAddr = config.proofsEnabled === true ? process.env.OP_DISPATCHER : process.env.OP_DISPATCHER_SIM;
-        sanityCheck = areAddressesEqual(dispatcherAddr, envDispatcherAddr);
-      } else if (networkName === 'base') {
-        envDispatcherAddr = config.proofsEnabled === true ? process.env.BASE_DISPATCHER : process.env.BASE_DISPATCHER_SIM;
-        sanityCheck = areAddressesEqual(dispatcherAddr, envDispatcherAddr);
-      } else {
-        sanityCheck = false;
-      }
+      envDispatcherAddr =
+        config.proofsEnabled === true
+          ? polyConfig[`${chainId}`]['clients']['op-client'].dispatcherAddr
+          : polyConfig[`${chainId}`]['clients']['sim-client'].dispatcherAddr;
+      sanityCheck = areAddressesEqual(dispatcherAddr, envDispatcherAddr);
     } catch (error) {
       console.log(`❌ Error getting dispatcher address from Universal Channel Mw or from config: ${error}`);
       return;

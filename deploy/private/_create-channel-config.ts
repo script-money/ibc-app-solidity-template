@@ -1,20 +1,24 @@
 import { exec } from 'child_process';
-import { updateConfigCreateChannel, getWhitelistedNetworks, getConfig } from './_helpers';
+import { updateConfigCreateChannel, getWhitelistedNetworks, getConfig, convertNetworkToChainId } from './_helpers';
 import { setupIbcChannelEventListener } from './_events';
-import { Channel, Network } from './interfaces';
+import { Channel, Config, Network } from './interfaces';
 
 // Function to run the deploy script and capture output
-function createChannelAndCapture() {
-  const config = getConfig();
-  const srcChain = config.createChannel.srcChain;
-
+function createChannelAndCapture(config: Config, srcChain: Network, dstChain: Network) {
   // Check if the source chain from user input is whitelisted
   const allowedNetworks = getWhitelistedNetworks();
-  if (!allowedNetworks.includes(srcChain)) {
-    console.error('❌ Invalid network name');
+
+  const srcChainId = convertNetworkToChainId(srcChain);
+  const dstChainId = convertNetworkToChainId(dstChain);
+
+  if (!allowedNetworks.includes(`${srcChainId}`)) {
+    console.error('❌ Invalid network name: Please provide a valid source chain');
     return;
   }
-
+  if (!allowedNetworks.includes(`${dstChainId}`)) {
+    console.error('❌ Invalid network name: Please provide a valid destination chain');
+    return;
+  }
   exec(`bunx hardhat run deploy/private/_create-channel.ts --network ${srcChain}`, (error, stdout) => {
     if (error) {
       console.error(`exec error: ${error}`);
@@ -53,8 +57,11 @@ function createChannelAndCapture() {
 }
 
 async function main() {
-  await setupIbcChannelEventListener();
-  createChannelAndCapture();
+  const config = getConfig();
+  const srcChain = config.createChannel.srcChain;
+  const dstChain = config.createChannel.dstChain;
+  await setupIbcChannelEventListener(srcChain, dstChain);
+  createChannelAndCapture(config, srcChain, dstChain);
 }
 
 main().catch((error) => {

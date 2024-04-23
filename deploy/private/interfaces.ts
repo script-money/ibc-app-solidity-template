@@ -8,12 +8,17 @@ export type Network = (typeof NetworkValues)[number];
 
 export type Connection = `connection-${number | string}`;
 export type Channel = `channel-${number | string}`;
+type ClientSuffix = `${Network}-sim` | `${Network}-proofs-2`;
 
 export type ClientType = {
-  canonConnFrom: Connection;
-  canonConnTo: Connection;
-  universalChannel: Channel;
+  clientSuffix: ClientSuffix;
+  canonConnFrom: Connection | '';
+  canonConnTo: Connection | '';
+  universalChannelId: Channel;
+  universalChannelAddr: Address;
+  dispatcherAddr: Address;
 };
+
 export type Config = {
   proofsEnabled: boolean;
   deploy: {
@@ -81,3 +86,31 @@ export type Config = {
     };
   };
 };
+
+export interface HreCustomChains {
+  network: Network;
+  chainId: number;
+  urls: {
+    apiURL: string;
+    apiKey: string;
+    browserURL: string;
+  };
+}
+
+export interface NetworkData {
+  [network: string]: {
+    url: string;
+    alchemyRPC?: string;
+    accounts: string[];
+    chainId: number;
+  };
+}
+
+export interface PolymerRegistry {
+  [chainId: string]: {
+    clients: {
+      'op-client': ClientType;
+      'sim-client': ClientType;
+    };
+  };
+}

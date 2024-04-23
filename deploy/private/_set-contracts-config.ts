@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import { getConfig, getConfigPath } from './_helpers';
+import fs from 'fs';
+import { getConfig, getConfigPath, convertNetworkToChainId, getWhitelistedNetworks } from './_helpers';
 import { Network } from './interfaces';
 
 if (process.argv.length < 5) {
@@ -7,11 +7,17 @@ if (process.argv.length < 5) {
   process.exit(1);
 }
 
-const chain = process.argv[2];
+const chain = process.argv[2] as Network;
 const contractType = process.argv[3];
 const universalBoolean = process.argv[4].trim().toLowerCase();
 
-if (chain !== 'optimism' && chain !== 'base') {
+try {
+  const allowedNetworks = getWhitelistedNetworks();
+  const chainId = convertNetworkToChainId(chain);
+  if (!allowedNetworks.includes(`${chainId}`)) {
+    throw new Error('Invalid network. Please provide a valid network as an argument.');
+  }
+} catch (error) {
   console.error('❌ Incorrect chain value. Usage: bun run set-contracts-config.ts <chain> <contractType> <isUniversal>');
   process.exit(1);
 }

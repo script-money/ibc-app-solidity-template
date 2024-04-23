@@ -1,5 +1,5 @@
 import { exec } from 'child_process';
-import { updateConfigDeploy, getWhitelistedNetworks } from './_helpers';
+import { updateConfigDeploy, getWhitelistedNetworks, convertNetworkToChainId } from './_helpers';
 import { Network } from './interfaces';
 
 // Run script with source and destination networks as arguments
@@ -16,7 +16,9 @@ if (!source || !destination) {
 // Function to run the deploy script and capture output
 function deployAndCapture(network: Network, isSource: boolean): void {
   const allowedNetworks = getWhitelistedNetworks();
-  if (!allowedNetworks.includes(network)) {
+  const chainId = convertNetworkToChainId(network);
+
+  if (!allowedNetworks.includes(`${chainId}`)) {
     console.error('Invalid network. Please provide a valid network as an argument.');
     return;
   }

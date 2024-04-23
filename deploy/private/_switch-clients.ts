@@ -1,7 +1,9 @@
-import * as fs from 'fs';
+// DEPRECATED: This script is no longer used in the current version of the SDK
+import fs from 'fs';
 import { getConfig, getConfigPath } from './_helpers';
-import ibcConfig from '../../ibc.json';
-import { Channel } from './interfaces';
+import hhConfig from '../../hardhat.config.ts';
+
+const polyConfig = hhConfig.polymer;
 
 // Function to update config.json
 function flipConfig() {
@@ -13,6 +15,8 @@ function flipConfig() {
     const tempConfig = { ...config };
     const source = tempConfig.createChannel.srcChain;
     const destination = tempConfig.createChannel.dstChain;
+    const srcChainId = hhConfig.networks[`${source}`].chainId;
+    const dstChainId = hhConfig.networks[`${destination}`].chainId;
 
     // Below, we'll update the config object
     if (config.backup !== undefined && typeof config.backup === 'object' && Object.keys(config.backup).length > 0) {
@@ -61,12 +65,12 @@ function flipConfig() {
     }
 
     // Update the universal channel values for new client
-    config.sendUniversalPacket.optimism.channelId = tempConfig.proofsEnabled
-      ? (ibcConfig['optimism']['sim-client']['universalChannel'] as Channel)
-      : (ibcConfig['optimism']['op-client']['universalChannel'] as Channel);
-    config.sendUniversalPacket.base.channelId = tempConfig.proofsEnabled
-      ? (ibcConfig['base']['sim-client']['universalChannel'] as Channel)
-      : (ibcConfig['base']['op-client']['universalChannel'] as Channel);
+    config['sendUniversalPacket'][`${source}`]['channelId'] = tempConfig.proofsEnabled
+      ? polyConfig[`${srcChainId}`]['clients']['op-client'].universalChannelId
+      : polyConfig[`${srcChainId}`]['clients']['sim-client'].universalChannelId;
+    config['sendUniversalPacket'][`${destination}`]['channelId'] = tempConfig.proofsEnabled
+      ? polyConfig[`${dstChainId}`]['clients']['op-client'].universalChannelId
+      : polyConfig[`${dstChainId}`]['clients']['sim-client'].universalChannelId;
 
     // Write a new backup object to the config
     config.backup = {

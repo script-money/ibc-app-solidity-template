@@ -4,103 +4,60 @@
 // You can also run a script with `bunx hardhat run <script>`. If you do that, Hardhat
 // will compile your contracts, add the Hardhat Runtime Environment's members to the
 // global scope, and execute the script.
-import { addressToPortId, getConfig } from './_helpers';
+import hre from 'hardhat';
+import { ethers } from 'hardhat';
+import { getConfig, convertNetworkToChainId, addressToPortId } from './_helpers';
 import { getIbcApp } from './_vibc-helpers';
-import ibcConfig from '../../ibc.json';
-import hre, { ethers } from 'hardhat';
 import { Network } from './interfaces';
 import { XCounter } from '../../typechain-types';
+import hhConfig from '../../hardhat.config.ts';
 
-interface OpIcs23ProofPath {
-  prefix: Uint8Array;
-  suffix: Uint8Array;
-}
-
-interface OpIcs23Proof {
-  path: OpIcs23ProofPath[];
-  key: Uint8Array;
-  value: Uint8Array;
-  prefix: Uint8Array;
-}
-
-interface DummyProof {
-  proof: OpIcs23Proof[];
-  height: number;
-}
-
-function createDummyProof(): DummyProof {
-  return {
-    proof: [
-      {
-        path: [
-          {
-            prefix: ethers.toUtf8Bytes('prefixExample1'),
-            suffix: ethers.toUtf8Bytes('suffixExample1'),
-          },
-          // Add more OpIcs23ProofPath objects as needed
-        ],
-        key: ethers.toUtf8Bytes('keyExample'),
-        value: ethers.toUtf8Bytes('valueExample'),
-        prefix: ethers.toUtf8Bytes('prefixExample'),
-      },
-      // Add more OpIcs23Proof objects as needed
-    ],
-    height: 123456, // example block height
-  };
-}
+const polyConfig = hhConfig.polymer;
 
 async function main() {
   const config = getConfig();
   const chanConfig = config.createChannel;
-  const networkName = hre.network.name as Network;
+  const srcChainName = hre.network.name as Network;
+  const srcChainId = convertNetworkToChainId(srcChainName);
+  const dstChainName = chanConfig.dstChain;
+  const dstChainId = convertNetworkToChainId(dstChainName);
 
   // Get the contract type from the config and get the contract
-  const ibcApp = await getIbcApp(networkName);
+  const ibcApp = await getIbcApp(srcChainName);
   if (!ibcApp) {
     throw new Error('Error getting IBC App');
   }
   const connectedChannelsBefore = await (ibcApp as XCounter).getConnectedChannels();
 
   // Prepare the arguments to create the channel
-  const connHop1 = ibcConfig[chanConfig.srcChain][`${config.proofsEnabled ? 'op-client' : 'sim-client'}`].canonConnFrom;
-  const connHop2 = ibcConfig[chanConfig.dstChain][`${config.proofsEnabled ? 'op-client' : 'sim-client'}`].canonConnTo;
-  const srcPortId = addressToPortId(`polyibc.${chanConfig.srcChain}`, chanConfig.srcAddr);
-  const dstPortId = addressToPortId(`polyibc.${chanConfig.dstChain}`, chanConfig.dstAddr);
+  // TODO: Update to allow dynamic choice of client type
+  const connHop1 = polyConfig[`${srcChainId}`]['clients'][`${config.proofsEnabled ? 'op-client' : 'sim-client'}`].canonConnFrom;
+  const connHop2 = polyConfig[`${dstChainId}`]['clients'][`${config.proofsEnabled ? 'op-client' : 'sim-client'}`].canonConnTo;
 
-  const local = {
-    portId: srcPortId,
-    channelId: ethers.encodeBytes32String(''),
-    version: chanConfig.version,
-  };
-
-  const cp = {
-    portId: dstPortId,
-    channelId: ethers.encodeBytes32String(''),
-    version: '',
-  };
+  const srcPortId = addressToPortId(chanConfig.srcAddr, srcChainName);
+  const dstPortId = addressToPortId(chanConfig.dstAddr, dstChainName);
 
   // Create the channel
   // Note: The proofHeight and proof are dummy values and will be dropped in the future
-  await (ibcApp as XCounter).createChannel(local, chanConfig.ordering, chanConfig.fees, [connHop1, connHop2], cp, createDummyProof());
+  await (ibcApp as XCounter).createChannel(chanConfig.version, chanConfig.ordering, chanConfig.fees, [connHop1, connHop2], dstPortId);
 
-  if (!config.proofsEnabled) {
-    // Wait for the channel handshake to complete
-    await new Promise((r) => setTimeout(r, 90000));
+  // Wait for the channel handshake to complete
+  const sleepTime = config.proofsEnabled ? 12000000 : 90000;
+  await new Promise((r) => setTimeout(r, sleepTime));
 
-    // Get the connected channels and print the new channel along with its counterparty
-    const connectedChannelsAfter = await (ibcApp as XCounter).getConnectedChannels();
+  // Get the connected channels and print the new channel along with its counterparty
+  const connectedChannelsAfter = await (ibcApp as XCounter).getConnectedChannels();
 
-    if (connectedChannelsAfter !== undefined && connectedChannelsAfter.length > connectedChannelsBefore.length) {
-      const newChannelBytes = connectedChannelsAfter[connectedChannelsAfter.length - 1].channelId;
-      const newChannel = ethers.decodeBytes32String(newChannelBytes);
+  if (connectedChannelsAfter !== undefined && connectedChannelsAfter.length > connectedChannelsBefore.length) {
+    const newChannelBytes = connectedChannelsAfter[connectedChannelsAfter.length - 1].channelId;
+    const newChannel = ethers.decodeBytes32String(newChannelBytes);
 
-      const cpChannelBytes = connectedChannelsAfter[connectedChannelsAfter.length - 1].cpChannelId;
-      const cpChannel = ethers.decodeBytes32String(cpChannelBytes);
+    const cpChannelBytes = connectedChannelsAfter[connectedChannelsAfter.length - 1].cpChannelId;
+    const cpChannel = ethers.decodeBytes32String(cpChannelBytes);
 
-      console.log(
-        `✅ Channel created: ${newChannel} with portID ${srcPortId} on network ${networkName}, Counterparty: ${cpChannel} on network ${chanConfig.dstChain}`,
-      );
-    }
+    console.log(
+      `✅ Channel created: ${newChannel} with portID ${srcPortId} on network ${srcChainName}, Counterparty: ${cpChannel} on network ${dstChainName}`,
+    );
   }
 }
 

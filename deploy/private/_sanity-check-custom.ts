@@ -4,15 +4,20 @@
 // You can also run a script with `bunx hardhat run <script>`. If you do that, Hardhat
 // will compile your contracts, add the Hardhat Runtime Environment's members to the
 // global scope, and execute the script.
+import hre from 'hardhat';
 import { areAddressesEqual, getConfig } from './_helpers';
 import { getIbcApp } from './_vibc-helpers';
 import { Network } from './interfaces';
 import { XCounter } from '../../typechain-types';
-import hre from 'hardhat';
+import hhConfig from '../../hardhat.config';
+
+const polyConfig = hhConfig.polymer;
 
 async function main() {
   const config = getConfig();
   const networkName = hre.network.name as Network;
+  const chainId = hre.config.networks[`${networkName}`].chainId;
+  console.log(`🔍 Running sanity check for network ${networkName} ${chainId}...`);
 
   // Get the Dispatcher from your IBC enabled contract and compare it with the stored value in the .env file
 
@@ -28,21 +33,15 @@ async function main() {
     return;
   }
 
-  if (!process.env.OP_DISPATCHER || !process.env.BASE_DISPATCHER || !process.env.BASE_DISPATCHER_SIM || !process.env.OP_DISPATCHER_SIM) {
-    throw new Error('❌ Missing dispatcher address in .env file');
-  }
-
   // 3. Compare with the value expected in the .env config file
   let sanityCheck = false;
   let envDispatcherAddr: string | undefined;
   try {
-    if (networkName === 'optimism') {
-      envDispatcherAddr = config.proofsEnabled === true ? process.env.OP_DISPATCHER : process.env.OP_DISPATCHER_SIM;
-      sanityCheck = areAddressesEqual(dispatcherAddr, envDispatcherAddr);
-    } else if (networkName === 'base') {
-      envDispatcherAddr = config.proofsEnabled === true ? process.env.BASE_DISPATCHER : process.env.BASE_DISPATCHER_SIM;
-      sanityCheck = areAddressesEqual(dispatcherAddr, envDispatcherAddr);
-    }
+    envDispatcherAddr =
+      config.proofsEnabled === true
+        ? polyConfig[`${chainId}`]['clients']['op-client'].dispatcherAddr
+        : polyConfig[`${chainId}`]['clients']['sim-client'].dispatcherAddr;
+    sanityCheck = areAddressesEqual(dispatcherAddr, envDispatcherAddr);
   } catch (error) {
     console.log(`❌ Error comparing dispatcher addresses in .env file and IBC app: ${error}`);
     return;
