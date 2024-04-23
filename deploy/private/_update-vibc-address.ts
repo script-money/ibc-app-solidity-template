@@ -4,14 +4,14 @@
 // You can also run a script with `bunx hardhat run <script>`. If you do that, Hardhat
 // will compile your contracts, add the Hardhat Runtime Environment's members to the
 // global scope, and execute the script.
-import hre, { ethers } from 'hardhat';
+import hre from 'hardhat';
 import { getDispatcherAddress, getUcHandlerAddress, getIbcApp } from './_vibc-helpers';
 import { getConfig } from './_helpers';
 import { Network } from './interfaces';
 import { XCounter, XCounterUC } from '../../typechain-types';
 
 async function main() {
-  await ethers.getSigners();
+  await hre.ethers.getSigners();
   const networkName = hre.network.name as Network;
   const config = getConfig();
 

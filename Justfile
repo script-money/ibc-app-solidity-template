@@ -1,8 +1,18 @@
 # Install dependencies
 install:
     echo "Installing dependencies"
-    npm install
+    bun install
     forge install --shallow
+    echo "Dependencies installed"
+    echo "Building VIBC core smart contracts in lib..."
+    cd lib/vibc-core-smart-contracts && forge build --contracts ./contracts/core --out ../../vibcArtifacts && cd ../..
+    echo "VIBC core smart contracts built"
+
+# Build config file at location specified in the .env file
+# Usage: just build-config
+build-config SOURCE DESTINATION:
+    echo "Building config file..."
+    bun run utils/buildConfig.ts {{SOURCE}} {{DESTINATION}}
 
 # Compile contracts using the specified compiler or default to Hardhat
 # The compiler argument is optional; if not provided, it defaults to "hardhat".
@@ -11,8 +21,8 @@ compile COMPILER='hardhat':
     #!/usr/bin/env sh
     if test "{{COMPILER}}" = "hardhat"; then
         echo "Compiling contracts with Hardhat..."
-        npx hardhat compile
-        npx hardhat typechain
+        bunx hardhat compile
+        bunx hardhat typechain
     elif test "{{COMPILER}}" = "foundry"; then
         echo "Compiling contracts with Foundry..."
         forge build
@@ -48,7 +58,7 @@ sanity-check:
 # Usage: just update-vibc [chain]
 update-vibc CHAIN:
   echo "Updating the dispatcher or universal channel handler address..."
-  npx hardhat run deploy/private/_update-vibc-address.ts --network {{CHAIN}}
+  bunx hardhat run deploy/private/_update-vibc-address.ts --network {{CHAIN}}
 
 # Create a channel by triggering a channel handshake from the source and with parameters found in the config.json file
 # Usage: just create-channel
@@ -63,13 +73,14 @@ send-packet SOURCE:
     echo "Sending a packet with the values from the config..."
     bun run deploy/private/_send-packet-config.ts {{SOURCE}}
 
+# DEPRECATED: Use single config file per client type
 # Switch between the sim client and the client with proofs
 # Usage: just switch-client
-switch-client:
-    echo "Switching between sim client and client with proofs..."
-    npx hardhat run deploy/private/_update-vibc-address.ts --network optimism
-    npx hardhat run deploy/private/_update-vibc-address.ts --network base
-    bun run deploy/private/_switch-clients.ts
+# switch-client:
+#     echo "Switching between sim client and client with proofs..."
+#     bunx hardhat run deploy/private/_update-vibc-address.ts --network optimism
+#     bunx hardhat run deploy/private/_update-vibc-address.ts --network base
+#     bun run deploy/private/_switch-clients.ts
 
 # Run the full E2E flow by setting the contracts, deploying them, creating a channel, and sending a packet
 # Usage: just do-it
@@ -95,4 +106,9 @@ clean-all:
     echo "Cleaning up environment..."
     rm -rf artifacts cache
     forge clean
-    rm -rf bun run _modules
+    rm -rf node_modules
+
+# Verify the smart contract on the chain provided (hardhat)
+# Usage: just verify-contract [chain] [contract address]
+verify-contract CHAIN CONTRACT_ADDRESS:
+    node scripts/private/_verify.js {{CHAIN}} {{CONTRACT_ADDRESS}}

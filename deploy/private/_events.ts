@@ -1,22 +1,50 @@
+import { type Contract } from 'ethers';
 import { ethers } from 'hardhat';
-import { areAddressesEqual, getConfig } from './_helpers';
+import { areAddressesEqual, getConfig, getExplorerDataFromConfig } from './_helpers';
 import { getDispatcher, getUcHandlerAddress } from './_vibc-helpers';
 import { Network } from './interfaces';
-import { Contract } from 'ethers';
-
-const explorerOpUrl = 'https://optimism-sepolia.blockscout.com/';
-const explorerBaseUrl = 'https://base-sepolia.blockscout.com/';
 
 function filterChannelEvents(portAddress: string) {
   const config = getConfig();
   return areAddressesEqual(portAddress, config.createChannel['srcAddr']) || areAddressesEqual(portAddress, config.createChannel['dstAddr']);
 }
 
-function listenForIbcChannelEvents(network: string, source: boolean, dispatcher: Contract) {
-  const explorerUrl = network === 'optimism' ? explorerOpUrl : explorerBaseUrl;
+function listenForIbcChannelEvents(network: Network, dispatcher: Contract) {
+  const explorerUrl = getExplorerDataFromConfig(network).browserURL;
   console.log(`👂 Listening for IBC channel events on ${network}...`);
   dispatcher.on(
-    'OpenIbcChannel',
+    'ChannelOpenInit',
+    (portAddress: string, version: string, ordering: string, feeEnabled: boolean, connectionHops: string, counterparytPortId: string, event: any) => {
+      const txHash = event.log.transactionHash;
+      const url = `${explorerUrl}/tx/${txHash}`;
+
+      if (filterChannelEvents(portAddress)) {
+        console.log(`
+          -------------------------------------------`);
+        console.log(`
+          🙋‍♀️   CHANNEL OPEN INIT !!!   🙋‍♀️`);
+        console.log(`
+          -------------------------------------------
+          🔔 Event name: ${event.log.fragment.name}
+          ⛓️  Network: ${network}
+          🔗 Port Address: ${portAddress}
+          🔗 Counterparty Port ID: ${counterparytPortId}
+          🦘 Connection Hops: ${connectionHops}
+          🔀 Ordering: ${ordering}
+          💰 Fee Enabled: ${feeEnabled}
+          #️⃣  Version: ${version}
+          -------------------------------------------
+          🧾 TxHash: ${txHash}
+          🔍 Explorer URL: ${url}
+          -------------------------------------------\n`);
+
+        console.log(` ⏱️  Waiting for channel open try...`);
+      }
+    },
+  );
+
+  dispatcher.on(
+    'ChannelOpenTry',
     (
       portAddress: string,
       version: string,
@@ -29,18 +57,13 @@ function listenForIbcChannelEvents(network: string, source: boolean, dispatcher:
     ) => {
       const txHash = event.log.transactionHash;
       const counterpartyChannelIdString = ethers.decodeBytes32String(counterpartyChannelId);
-      const url = `${explorerUrl}tx/${txHash}`;
+      const url = `${explorerUrl}/tx/${txHash}`;
 
       if (filterChannelEvents(portAddress)) {
         console.log(`
           -------------------------------------------`);
-        if (source) {
-          console.log(`
-          🙋‍♀️   CHANNEL OPEN INIT !!!   🙋‍♀️`);
-        } else {
-          console.log(`
+        console.log(`
           🙋‍♂️   CHANNEL OPEN TRY !!!   🙋‍♂️`);
-        }
 
         console.log(`
           -------------------------------------------
@@ -58,29 +81,20 @@ function listenForIbcChannelEvents(network: string, source: boolean, dispatcher:
           🔍 Explorer URL: ${url}
           -------------------------------------------\n`);
 
-        if (source) {
-          console.log(` ⏱️  Waiting for channel open try...`);
-        } else {
-          console.log(` ⏱️  Waiting for channel open ack...`);
-        }
+        console.log(` ⏱️  Waiting for channel open ack...`);
       }
     },
   );
 
-  dispatcher.on('ConnectIbcChannel', (portAddress: string, channelId: string, event: any) => {
+  dispatcher.on('ChannelOpenAck', (portAddress: string, channelId: string, event: any) => {
     const txHash = event.log.transactionHash;
     const channelIdString = ethers.decodeBytes32String(channelId);
-    const url = `${explorerUrl}tx/${txHash}`;
+    const url = `${explorerUrl}/tx/${txHash}`;
     if (filterChannelEvents(portAddress)) {
       console.log(`
           -------------------------------------------`);
-      if (source) {
-        console.log(`
+      console.log(`
           👩‍❤️‍💋‍👨   CHANNEL OPEN ACK !!!   👩‍❤️‍💋‍👨`);
-      } else {
-        console.log(`
-          🤵‍♂️💍👰‍♀️   CHANNEL OPEN CONFIRM !!!   👰‍♀️💍🤵‍♂️`);
-      }
       console.log(`
           -------------------------------------------
           🔔 Event name: ${event.log.fragment.name}
@@ -91,11 +105,34 @@ function listenForIbcChannelEvents(network: string, source: boolean, dispatcher:
           🧾 TxHash: ${txHash}
           🔍 Explorer URL: ${url}
           -------------------------------------------\n`);
-      if (source) {
-        console.log(` ⏱️  Waiting for channel open confirm...`);
-      } else {
-        console.log(` ⏱️  Waiting for channel creation overview...`);
-      }
+
+      console.log(` ⏱️  Waiting for channel open confirm...`);
+    }
+    dispatcher.removeAllListeners();
+  });
+
+  dispatcher.on('ChannelOpenConfirm', (portAddress, channelId, event) => {
+    const txHash = event.log.transactionHash;
+    const channelIdString = ethers.decodeBytes32String(channelId);
+    const url = `${explorerUrl}/tx/${txHash}`;
+    if (filterChannelEvents(portAddress)) {
+      console.log(`
+          -------------------------------------------`);
+
+      console.log(`
+          🤵‍♂️💍👰‍♀️   CHANNEL OPEN CONFIRM !!!   👰‍♀️💍🤵‍♂️`);
+      console.log(`
+          -------------------------------------------
+          🔔 Event name: ${event.log.fragment.name}
+          ⛓️  Network: ${network}
+          🔗 Port Address: ${portAddress}
+          🛣️  Channel ID: ${channelIdString}
+          -------------------------------------------
+          🧾 TxHash: ${txHash}
+          🔍 Explorer URL: ${url}
+          -------------------------------------------\n`);
+
+      console.log(` ⏱️  Waiting for channel creation overview...`);
     }
     dispatcher.removeAllListeners();
   });
@@ -103,7 +140,7 @@ function listenForIbcChannelEvents(network: string, source: boolean, dispatcher:
   dispatcher.on('CloseIbcChannel', (portAddress: string, channelId: string, event: any) => {
     const txHash = event.log.transactionHash;
     const channelIdString = ethers.decodeBytes32String(channelId);
-    const url = `${explorerUrl}tx/${txHash}`;
+    const url = `${explorerUrl}/tx/${txHash}`;
     if (filterChannelEvents(portAddress)) {
       console.log(`
           -------------------------------------------
@@ -131,7 +168,7 @@ function filterPacketEvents(portAddress: string, network: Network) {
 }
 
 function listenForIbcPacketEvents(network: Network, dispatcher: Contract) {
-  const explorerUrl = network === 'optimism' ? explorerOpUrl : explorerBaseUrl;
+  const explorerUrl = getExplorerDataFromConfig(network).browserURL;
   console.log(`👂 Listening for IBC packet events on ${network}...`);
 
   dispatcher.on(
@@ -139,7 +176,7 @@ function listenForIbcPacketEvents(network: Network, dispatcher: Contract) {
     (sourcePortAddress: string, sourceChannelId: string, packet: string, sequence: string, timeoutTimestamp: string, event: any) => {
       const txHash = event.log.transactionHash;
       const sourceChannelIdString = ethers.decodeBytes32String(sourceChannelId);
-      const url = `${explorerUrl}tx/${txHash}`;
+      const url = `${explorerUrl}/tx/${txHash}`;
 
       if (filterPacketEvents(sourcePortAddress, network)) {
         console.log(` 
@@ -164,7 +201,7 @@ function listenForIbcPacketEvents(network: Network, dispatcher: Contract) {
   dispatcher.on('RecvPacket', (destPortAddress: string, destChannelId: string, sequence: string, event: any) => {
     const txHash = event.log.transactionHash;
     const destChannelIdString = ethers.decodeBytes32String(destChannelId);
-    const url = `${explorerUrl}tx/${txHash}`;
+    const url = `${explorerUrl}/tx/${txHash}`;
 
     if (filterPacketEvents(destPortAddress, network)) {
       console.log(`
@@ -187,7 +224,7 @@ function listenForIbcPacketEvents(network: Network, dispatcher: Contract) {
   dispatcher.on('WriteAckPacket', (writerPortAddress: string, writerChannelId: string, sequence: string, ackPacket: string, event: any) => {
     const txHash = event.log.transactionHash;
     const writerChannelIdString = ethers.decodeBytes32String(writerChannelId);
-    const url = `${explorerUrl}tx/${txHash}`;
+    const url = `${explorerUrl}/tx/${txHash}`;
     if (filterPacketEvents(writerPortAddress, network)) {
       console.log(`
         ------------------------------------------- 
@@ -215,7 +252,7 @@ function listenForIbcPacketEvents(network: Network, dispatcher: Contract) {
     console.log('event: ', event);
     const txHash = event.log.transactionHash;
     const sourceChannelIdString = ethers.decodeBytes32String(sourceChannelId);
-    const url = `${explorerUrl}tx/${txHash}`;
+    const url = `${explorerUrl}/tx/${txHash}`;
     if (filterPacketEvents(sourcePortAddress, network)) {
       console.log(`
         ------------------------------------------- 
@@ -235,32 +272,29 @@ function listenForIbcPacketEvents(network: Network, dispatcher: Contract) {
   });
 }
 
-async function setupIbcPacketEventListener() {
+async function setupIbcPacketEventListener(src: Network, dst: Network) {
   console.log('🔊 Setting up IBC packet event listener...');
   // Get the dispatchers for both source and destination to listen for IBC packet events
-  const opDispatcher = await getDispatcher('optimism');
-  const baseDispatcher = await getDispatcher('base');
-  if (!opDispatcher || !baseDispatcher) {
+  const srcDispatcher = await getDispatcher(src);
+  const dstDispatcher = await getDispatcher(dst);
+  if (!srcDispatcher || !dstDispatcher) {
     throw new Error('Error getting dispatchers in setupIbcPacketEventListener');
   }
-  listenForIbcPacketEvents('optimism', opDispatcher);
-  listenForIbcPacketEvents('base', baseDispatcher);
+  listenForIbcPacketEvents(src, srcDispatcher);
+  listenForIbcPacketEvents(dst, dstDispatcher);
 }
 
-async function setupIbcChannelEventListener() {
+async function setupIbcChannelEventListener(src: Network, dst: Network) {
   console.log('🔊 Setting up IBC channel event listener...');
-  const config = getConfig();
-  const opIsSource = config.createChannel.srcChain === 'optimism';
-  const baseIsSource = config.createChannel.srcChain === 'base';
 
   // Get the dispatchers for both source and destination to listen for IBC packet events
-  const opDispatcher = await getDispatcher('optimism');
-  const baseDispatcher = await getDispatcher('base');
-  if (!opDispatcher || !baseDispatcher) {
+  const srcDispatcher = await getDispatcher(src);
+  const dstDispatcher = await getDispatcher(dst);
+  if (!srcDispatcher || !dstDispatcher) {
     throw new Error('Error getting dispatchers in setupIbcChannelEventListener');
   }
-  listenForIbcChannelEvents('optimism', opIsSource, opDispatcher);
-  listenForIbcChannelEvents('base', baseIsSource, baseDispatcher);
+  listenForIbcChannelEvents(src, srcDispatcher);
+  listenForIbcChannelEvents(dst, dstDispatcher);
 }
 
 export { listenForIbcChannelEvents, listenForIbcPacketEvents, setupIbcPacketEventListener, setupIbcChannelEventListener };

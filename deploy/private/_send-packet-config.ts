@@ -1,5 +1,5 @@
 import { exec } from 'child_process';
-import { getConfig, getWhitelistedNetworks } from './_helpers';
+import { getConfig, getWhitelistedNetworks, convertNetworkToChainId } from './_helpers';
 import { setupIbcPacketEventListener } from './_events';
 import { Config, Network } from './interfaces';
 
@@ -11,12 +11,11 @@ if (!source) {
 
 function runSendPacketCommand(command: string): Promise<boolean> {
   return new Promise((resolve, reject) => {
-    exec(command, (error, stdout) => {
+    exec(command, (error) => {
       if (error) {
         console.error(`exec error: ${error}`);
         reject(error);
       } else {
-        console.log(stdout);
         resolve(true);
       }
     });
@@ -26,16 +25,21 @@ function runSendPacketCommand(command: string): Promise<boolean> {
 async function runSendPacket(config: Config) {
   // Check if the source chain from user input is whitelisted
   const allowedNetworks = getWhitelistedNetworks();
-  if (!allowedNetworks.includes(source)) {
+  const srcChainId = convertNetworkToChainId(source);
+  if (!allowedNetworks.includes(`${srcChainId}`)) {
     console.error('❌ Please provide a valid source chain');
     process.exit(1);
   }
+
+  const destination = config.isUniversal
+    ? (Object.keys(config.sendUniversalPacket).find((chain) => chain !== source) as Network)
+    : (Object.keys(config.sendPacket).find((chain) => chain !== source) as Network);
 
   const script = config.isUniversal ? 'send-universal-packet.ts' : 'send-packet.ts';
   const command = `bunx hardhat run deploy/${script} --network ${source}`;
 
   try {
-    await setupIbcPacketEventListener();
+    await setupIbcPacketEventListener(source, destination);
     await runSendPacketCommand(command);
   } catch (error) {
     console.error('❌ Error sending packet: ', error);
